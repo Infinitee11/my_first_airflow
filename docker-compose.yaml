@@ -1,0 +1,117 @@
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  image: my-custom-airflow:2.11.2
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    # Если нужно, чтобы Airflow мог подключаться к ClickHouse, можно установить провайдер через _PIP_ADDITIONAL_REQUIREMENTS
+    # _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-clickhousedb
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # 1. ClickHouse
+  clickhouse:
+    image: clickhouse:26.7
+    container_name: clickhouse-dewf
+    ports:
+      - "8123:8123"   # HTTP порт
+      - "9000:9000"   # Native порт (для Grafana plugin или clickhouse-client)
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      # Простая настройка для локальной разработки, в production нужно усилить безопасность
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: "changeme"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  # 2. Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-dewf
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - clickhouse
+
+  # 3. PostgreSQL для Airflow (база метаданных)
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres-dewf
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+
+  # 4. Airflow Init (инициализация БД и создание пользователя)
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init-dewf
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 5. Airflow Webserver
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver-dewf
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # 6. Airflow Scheduler
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler-dewf
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  clickhouse_data:
+  grafana_data:
+  postgres_data:

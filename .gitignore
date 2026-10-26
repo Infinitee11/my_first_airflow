@@ -1,1 +1,42 @@
 logs
+# Virtual environment
+.venv/
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Tests and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checking and linting
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+.python-version
+pyproject.toml
+uv.lock

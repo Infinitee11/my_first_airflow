@@ -1,7 +1,11 @@
 version: '3.8'
 
 x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile
   image: my-custom-airflow:2.11.2
+
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor

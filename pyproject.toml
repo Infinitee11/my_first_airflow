@@ -1,0 +1,14 @@
+[project]
+name = "data-engineering-workflow"
+version = "0.1.0"
+description = "Data Engineering Workflow"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apache-airflow>=3.3.2",
+    "clickhouse-connect>=1.11.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13.0"]
+build-backend = "uv_build"
